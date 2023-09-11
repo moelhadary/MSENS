@@ -1,0 +1,217 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Main page for MSENS</title>
+    <link rel="stylesheet" type="text/css" href="main.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+
+</head>
+
+
+<body>
+    <!--
+    <input type="file" id="uploadfile" accept=".csv">
+    <button id="uploadconfirm">Upload File</button> 
+    -->
+
+
+    <script>
+
+    </script>
+    <header>
+        <h1>Main page for MSENS</h1>
+    </header>
+
+    <!--
+    <a-assets>
+        <img id="MSENS" src="MSENS.jpg">
+    </a-assets>
+    -->
+    <ul class="sec" id="sec">
+        <li><label id="lifetime">lifetime remaining: </label></li>
+        <li><label id="start-up time">start-up time: </label></li>
+        <li><label id="operation">operation time: </label></li>
+        <li><label id="abnormal">abnormal temperature time: </label></li>
+        <li><label id="cycle">start-up cycle: </label></li>
+    </ul>
+    <h2>Temperature vs Time</h2>
+    <canvas id="myChart" width="800" height="400"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.0/papaparse.min.js"></script>
+    <script type="module">
+
+        // start of java
+        // get label of the website
+        let lifetime = document.getElementById("lifetime");
+        let start_up = document.getElementById("start-up time");
+        let operation = document.getElementById("operation");
+        let abnormal = document.getElementById("abnormal");
+        let cycle = document.getElementById("cycle");
+        let canvas, ctx, temperature, data, config, myChart;
+        // initialize 1, 2, 3, 4
+        let lifetimeRemain = 0;
+        let start_upTime = 0;
+        let operationTime = 0;
+        let abnormalTemp = 0;
+        let start_upCycle = 0;
+        let flag = 0;
+        // set constant
+        let c1 = 5;
+        let c2 = 1;
+        let c3 = 10;
+        let c4 = 15;
+        let t0 = 28;
+        let t1 = 33;
+        let t2 = 38;
+
+        let totalTime = 500;
+        var time = 0;
+        // interval between each update
+        let timeStep = 1;
+        // linitialize data list
+        let newData = [];
+        let temperatureList = [];
+
+        // initialize graph
+        canvas = document.getElementById('myChart');
+        ctx = canvas.getContext("2d");
+        data = {
+            datasets: [{
+                label: 'Current Temperature (degrees celsius)  vs Time(second)',
+                data: newData,
+                backgroundColor: 'rgb(255, 99, 132)'
+            },
+            {
+                type: 'line',
+                label: 'Abnormal Working Temperature = 38',
+                data: [{ x: 0, y: t2 },
+                { x: totalTime, y: t2 }],
+                borderColor: 'red',
+                borderWidth: 1,
+                fill: false
+            }]
+        };
+        config = {
+            type: 'line',
+            data: data,
+            options: {
+                responsive: false,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        title: {
+                            display: true,
+                            text: 'Time (second)',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Temperature (degrees Celsius)',
+                            font: {
+                                size: 16
+                            }
+                        }
+
+                    }
+
+                }
+            }
+        };
+        //
+        let temperatureData = []
+
+        var socket = io('http://localhost:3000');
+
+        socket.on('data', function (data) {
+            console.log(data);
+            temperatureList.push(data);
+            printChart(temperatureData);
+        });
+
+        
+
+        function printChart(data) {
+            console.log("temperatureList", temperatureList);
+        }
+        myChart = new Chart(canvas, config);
+        // update the web after every interval
+        setInterval(function () {
+           
+
+            // add data into plot, update plot
+            newData.push({ x: time, y: temperatureList[time] });
+            // json
+            // {key: value, key: value....}
+            data = {
+                datasets: [{
+                    label: 'Total Activity Time vs Current Score',
+                    data: newData,
+                    backgroundColor: 'rgb(255, 99, 132)'
+                }],
+            };
+            myChart.update();
+
+            // operation time
+            if ((temperatureList[time] > t1) && (temperatureList[time] < t2)) {
+                operationTime = operationTime + timeStep;
+            }
+
+            // update abnormal temperature time
+            if (temperatureList[time] >= t2) {
+                abnormalTemp = abnormalTemp + timeStep;
+            }
+
+            // set flag
+            if ((temperatureList[time - 1] >= t1) && (temperatureList[time] < t1)) {
+                flag = 1;
+            }
+
+            // cycle
+            if ((flag == 1) && ((temperatureList[time] <= t0) || (temperatureList[time] >= t1))) {
+                start_upCycle = start_upCycle + 1;
+                flag = 0;
+            }
+
+            if (temperatureList.length > 1) {
+                // start-up time
+                if ((temperatureList[time] > t0) && (temperatureList[time] < t1) && (temperatureList[time - 1] < temperatureList[time])) {
+                    start_upTime = start_upTime + timeStep;
+                }
+            }
+
+            // calculate lifetime remaining
+            lifetimeRemain = totalTime - start_upTime * c1 - operationTime * c2 - abnormalTemp * c3 - start_upCycle * c4;
+            // show on website
+            if (lifetimeRemain > 0) {
+                lifetime.innerText = "lifetime remaining: " + lifetimeRemain;
+                start_up.innerText = "start-up time: " + start_upTime * c1;
+                operation.innerText = "operation time: " + operationTime * c2;
+                abnormal.innerText = "abnormal temperature: " + abnormalTemp * c3;
+                cycle.innerText = "start-up cycle: " + start_upCycle * c4;
+            } else {
+                lifetime.innerText = "maintenence required";
+                start_up.innerText = "maintenence required";
+                operation.innerText = "maintenence required";
+                abnormal.innerText = "maintenence required";
+                cycle.innerText = "maintenence required";
+            }
+
+
+            // increase time
+            time = time + timeStep;
+        },
+            // time between each update (in ms)
+            timeStep * 1000);
+
+
+    </script>
+</body>
+
+</html>
