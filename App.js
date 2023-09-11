@@ -1,3 +1,4 @@
+// Server-Side
 var http = require('http');
 var fs = require('fs');
 var index = fs.readFileSync('main.html');
